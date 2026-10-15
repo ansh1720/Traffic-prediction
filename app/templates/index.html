@@ -261,6 +261,69 @@
         #delay-tile {
             border-left: 5px solid var(--accent-indigo);
         }
+        /* Autocomplete Dropdown */
+        .autocomplete-wrapper {
+            position: relative;
+        }
+
+        .autocomplete-list {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 1px solid var(--accent-indigo);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(79, 70, 229, 0.12);
+            z-index: 9999;
+            max-height: 220px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .autocomplete-list.open {
+            display: block;
+        }
+
+        .autocomplete-item {
+            padding: 0.65rem 1rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            color: var(--text-main);
+            border-bottom: 1px solid #f3f4f6;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            transition: background 0.15s;
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.active {
+            background-color: #eef2ff;
+            color: var(--accent-indigo);
+        }
+
+        .autocomplete-item .ac-icon {
+            margin-top: 2px;
+            flex-shrink: 0;
+            color: var(--accent-indigo);
+            opacity: 0.6;
+        }
+
+        .autocomplete-item .ac-name {
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .autocomplete-item .ac-detail {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+        }
     </style>
 </head>
 <body>
@@ -272,12 +335,18 @@
                 
                 <div class="form-group">
                     <label for="source">Source Landmark</label>
-                    <input type="text" id="source" class="form-control" value="Majestic Bus Station, Bengaluru">
+                    <div class="autocomplete-wrapper" id="source-wrapper">
+                        <input type="text" id="source" class="form-control" value="Majestic Bus Station, Bengaluru" autocomplete="off" placeholder="Type a location...">
+                        <div class="autocomplete-list" id="source-list"></div>
+                    </div>
                 </div>
                 
                 <div class="form-group">
                     <label for="destination">Destination Landmark</label>
-                    <input type="text" id="destination" class="form-control" value="Whitefield, Bengaluru">
+                    <div class="autocomplete-wrapper" id="destination-wrapper">
+                        <input type="text" id="destination" class="form-control" value="Whitefield, Bengaluru" autocomplete="off" placeholder="Type a location...">
+                        <div class="autocomplete-list" id="destination-list"></div>
+                    </div>
                 </div>
 
                 <div class="form-row">
@@ -334,6 +403,92 @@
     <script>
         // Set Default inputs
         document.getElementById('dep-date').valueAsDate = new Date();
+
+        // ── Autocomplete Logic ──────────────────────────────────────────────
+        function setupAutocomplete(inputId, listId) {
+            const input = document.getElementById(inputId);
+            const list  = document.getElementById(listId);
+            let debounceTimer = null;
+            let activeIndex   = -1;
+            let suggestions   = [];
+
+            input.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                const q = input.value.trim();
+                if (q.length < 3) { closeList(); return; }
+                debounceTimer = setTimeout(() => fetchSuggestions(q), 350);
+            });
+
+            input.addEventListener('keydown', (e) => {
+                const items = list.querySelectorAll('.autocomplete-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeIndex = Math.min(activeIndex + 1, items.length - 1);
+                    updateActive(items);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeIndex = Math.max(activeIndex - 1, 0);
+                    updateActive(items);
+                } else if (e.key === 'Enter' && activeIndex >= 0) {
+                    e.preventDefault();
+                    items[activeIndex].click();
+                } else if (e.key === 'Escape') {
+                    closeList();
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !list.contains(e.target)) closeList();
+            });
+
+            async function fetchSuggestions(query) {
+                try {
+                    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`;
+                    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+                    suggestions = await res.json();
+                    renderList(suggestions);
+                } catch { closeList(); }
+            }
+
+            function renderList(items) {
+                list.innerHTML = '';
+                activeIndex = -1;
+                if (!items.length) { closeList(); return; }
+                items.forEach((item, i) => {
+                    const name   = item.name || item.display_name.split(',')[0];
+                    const detail = item.display_name;
+                    const div = document.createElement('div');
+                    div.className = 'autocomplete-item';
+                    div.innerHTML = `
+                        <span class="ac-icon">📍</span>
+                        <span>
+                            <div class="ac-name">${name}</div>
+                            <div class="ac-detail">${detail}</div>
+                        </span>`;
+                    div.addEventListener('click', () => {
+                        input.value = detail;
+                        closeList();
+                    });
+                    list.appendChild(div);
+                });
+                list.classList.add('open');
+            }
+
+            function updateActive(items) {
+                items.forEach((el, i) => el.classList.toggle('active', i === activeIndex));
+                if (items[activeIndex]) items[activeIndex].scrollIntoView({ block: 'nearest' });
+            }
+
+            function closeList() {
+                list.classList.remove('open');
+                list.innerHTML = '';
+                activeIndex = -1;
+            }
+        }
+
+        setupAutocomplete('source', 'source-list');
+        setupAutocomplete('destination', 'destination-list');
+        // ───────────────────────────────────────────────────────────────────
 
         // 1. Initialize Map
         const map = L.map('map').setView([12.9716, 77.5946], 12);
