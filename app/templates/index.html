@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bengaluru Smart Route Traffic & Journey Planner</title>
+    
+    <!-- Google Fonts: Outfit -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet.js CSS for Map -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}"/>
+
+    <style>
+        /* Base Variables and Colors - Light Theme */
+        :root {
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --card-border: #e5e7eb;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --accent-indigo: #4f46e5;
+            --accent-indigo-hover: #4338ca;
+            --input-border: #d1d5db;
+            
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.5;
+            padding: 2rem;
+        }
+
+        /* Container Layout */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Responsive Grid for Planner */
+        .planner-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1.8fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 968px) {
+            .planner-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards and Containers */
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 1.8rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .card h2 {
+            font-size: 1.4rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-main);
+            font-weight: 700;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            padding-bottom: 0.5rem;
+            text-transform: capitalize;
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background-color: #ffffff;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-indigo);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            cursor: pointer;
+        }
+
+        .checkbox-group input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-indigo);
+            cursor: pointer;
+        }
+
+        .btn-predict {
+            width: 100%;
+            padding: 0.9rem;
+            background-color: var(--accent-indigo);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-predict:hover {
+            background-color: var(--accent-indigo-hover);
+        }
+
+        /* Map Container */
+        #map {
+            width: 100%;
+            height: 440px;
+            border-radius: 14px;
+            border: 1px solid var(--card-border);
+            background-color: #e5e7eb;
+            z-index: 1;
+        }
+
+        /* Result Panel Styling */
+        .results-container {
+            display: none;
+            margin-top: 1.5rem;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr 1fr;
+            gap: 1.2rem;
+        }
+
+        @media (max-width: 768px) {
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .status-card {
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .status-low {
+            background-color: var(--success);
+            color: white;
+        }
+        .status-medium {
+            background-color: var(--warning);
+            color: white;
+        }
+        .status-high {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .status-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.9;
+            margin-bottom: 0.3rem;
+            font-weight: 600;
+        }
+
+        .status-value {
+            font-size: 1.7rem;
+            font-weight: 800;
+            margin-bottom: 0.3rem;
+        }
+
+        .status-confidence {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .metric-tile {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.2rem;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .metric-lbl {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.3rem;
+            font-weight: 600;
+        }
+
+        #delay-tile {
+            border-left: 5px solid var(--accent-indigo);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="planner-grid">
+            <div class="card">
+                <h2>Configure Trip</h2>
+                
+                <div class="form-group">
+                    <label for="source">Source Landmark</label>
+                    <input type="text" id="source" class="form-control" value="Majestic Bus Station, Bengaluru">
+                </div>
+                
+                <div class="form-group">
+                    <label for="destination">Destination Landmark</label>
+                    <input type="text" id="destination" class="form-control" value="Whitefield, Bengaluru">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dep-date">Departure Date</label>
+                        <input type="date" id="dep-date" class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="dep-time">Departure Time</label>
+                        <input type="time" id="dep-time" class="form-control" value="15:00">
+                    </div>
+                </div>
+
+
+
+                <button class="btn-predict" onclick="calculateTraffic()">
+                    Calculate Traffic & Travel Time
+                </button>
+            </div>
+
+            <div class="card" style="padding: 0.5rem; overflow: hidden; position: relative;">
+                <div id="map"></div>
+            </div>
+        </div>
+
+        <!-- Result Metrics Panel -->
+        <div id="results" class="results-container">
+            <div class="metrics-grid">
+                <div id="status-card" class="status-card">
+                    <div class="status-title">Route Congestion</div>
+                    <div id="status-val" class="status-value">-</div>
+                    <div id="status-conf" class="status-confidence">Avg Confidence: -%</div>
+                </div>
+                <div class="metric-tile">
+                    <div id="metric-dist" class="metric-value">- km</div>
+                    <div class="metric-lbl">Journey Distance</div>
+                </div>
+                <div class="metric-tile">
+                    <div id="metric-duration" class="metric-value">- mins</div>
+                    <div class="metric-lbl">Predicted Duration</div>
+                </div>
+                <div class="metric-tile" id="delay-tile">
+                    <div id="metric-delay" class="metric-value">+0.0 mins</div>
+                    <div class="metric-lbl">Expected Delay</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet.js script -->
+    <script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+
+    <script>
+        // Set Default inputs
+        document.getElementById('dep-date').valueAsDate = new Date();
+
+        // 1. Initialize Map
+        const map = L.map('map').setView([12.9716, 77.5946], 12);
+        
+        // Standard Light OpenStreetMap tile layer (light theme)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        let mainPolyline = null;
+        let altPolyline = null;
+        let originMarker = null;
+        let destMarker = null;
+
+        // Toggle checkbox helper
+        function toggleCheckbox(id) {
+            const check = document.getElementById(id);
+            check.checked = !check.checked;
+        }
+
+        // 2. Fetch predictions and render route
+        async function calculateTraffic() {
+            const src = document.getElementById('source').value;
+            const dst = document.getElementById('destination').value;
+            const date = document.getElementById('dep-date').value;
+            const time = document.getElementById('dep-time').value;
+            const incident = false;
+
+            if (!src || !dst) {
+                alert("Please fill in source and destination areas.");
+                return;
+            }
+
+            const btn = document.querySelector('.btn-predict');
+            btn.innerHTML = "Calculating...";
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/route', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source: src,
+                        destination: dst,
+                        date: date,
+                        time: time,
+                        incident: incident
+                    })
+                });
+
+                const res = await response.json();
+                if (!res.success) {
+                    alert("Error: " + res.error);
+                    btn.innerHTML = "Calculate Traffic & Travel Time";
+                    btn.disabled = false;
+                    return;
+                }
+
+                // Render metrics
+                document.getElementById('results').style.display = 'block';
+                
+                const delay = res.delay;
+                const nomTime = res.nominal_time;
+                const delayPct = (delay / nomTime) * 100;
+                
+                const statusCard = document.getElementById('status-card');
+                const statusVal = document.getElementById('status-val');
+                const statusConf = document.getElementById('status-conf');
+                
+                statusCard.className = 'status-card'; // Reset classes
+                
+                let avgConf = 0;
+                res.segments.forEach(s => avgConf += s.confidence);
+                avgConf = (avgConf / res.segments.length).toFixed(1);
+
+                if (delayPct < 15) {
+                    statusCard.classList.add('status-low');
+                    statusVal.innerText = "LOW CONGESTION";
+                } else if (delayPct < 45) {
+                    statusCard.classList.add('status-medium');
+                    statusVal.innerText = "MEDIUM CONGESTION";
+                } else {
+                    statusCard.classList.add('status-high');
+                    statusVal.innerText = "HIGH CONGESTION";
+                }
+                statusConf.innerText = "Avg Confidence: " + avgConf + "%";
+
+                document.getElementById('metric-dist').innerText = res.distance_km.toFixed(2) + " km";
+                document.getElementById('metric-duration').innerText = res.predicted_time.toFixed(1) + " mins";
+                document.getElementById('metric-delay').innerText = "+" + res.delay.toFixed(1) + " mins";
+                
+                // Color left-border of delay metric
+                const delayTile = document.getElementById('delay-tile');
+                delayTile.style.borderLeftColor = delay < 2 ? 'var(--success)' : (delay < 10 ? 'var(--warning)' : 'var(--danger)');
+
+                // Plot Route Polylines on Leaflet
+                if (mainPolyline) map.removeLayer(mainPolyline);
+                if (altPolyline) map.removeLayer(altPolyline);
+                if (originMarker) map.removeLayer(originMarker);
+                if (destMarker) map.removeLayer(destMarker);
+
+                // Origin pin (green)
+                originMarker = L.circleMarker(res.start_coords, {
+                    color: '#10b981',
+                    fillColor: '#10b981',
+                    fillOpacity: 1,
+                    radius: 7
+                }).addTo(map).bindPopup(`Origin: ${src}`);
+
+                // Destination pin (red)
+                destMarker = L.circleMarker(res.end_coords, {
+                    color: '#ef4444',
+                    fillColor: '#ef4444',
+                    fillOpacity: 1,
+                    radius: 7
+                }).addTo(map).bindPopup(`Destination: ${dst}`);
+
+                // Draw alternate polyline (translucent gray)
+                if (res.alt_route) {
+                    altPolyline = L.polyline(res.alt_route.geometry, {
+                        color: '#9ca3af',
+                        weight: 4,
+                        opacity: 0.6
+                    }).addTo(map);
+                }
+
+                // Draw main polyline (indigo)
+                mainPolyline = L.polyline(res.route_geometry, {
+                    color: '#6366f1',
+                    weight: 6,
+                    opacity: 0.95
+                }).addTo(map);
+
+                // Zoom map to bounds
+                map.fitBounds(mainPolyline.getBounds(), { padding: [40, 40] });
+
+            } catch (err) {
+                console.error(err);
+                alert("An error occurred during query fetch calculations.");
+            } finally {
+                btn.innerHTML = "Calculate Traffic & Travel Time";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
