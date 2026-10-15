@@ -443,7 +443,7 @@
 
             async function fetchSuggestions(query) {
                 try {
-                    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`;
+                    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1&viewbox=77.45,13.10,77.75,12.85&bounded=1&countrycodes=in`;
                     const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
                     suggestions = await res.json();
                     renderList(suggestions);
