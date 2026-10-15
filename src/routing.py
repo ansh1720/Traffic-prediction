@@ -20,14 +20,14 @@ import config
 def geocode_address(address):
     """
     Geocode an address string to (latitude, longitude) using Nominatim.
-    Falls back to mock coordinates on failure.
+    Returns None on failure — never uses random/hash fallback coordinates.
     """
     if not address or not address.strip():
         return None
 
     address_clean = address.strip()
 
-    # Pre-defined mocks for common test locations in Bengaluru (and NYC legacy tests)
+    # Pre-defined mocks for common Bengaluru landmarks (fast path, no API call needed)
     mocks = {
         "majestic": (12.9781, 77.5696),
         "kempegowda bus": (12.9781, 77.5696),
@@ -39,40 +39,64 @@ def geocode_address(address):
         "kempegowda airport": (13.1986, 77.7066),
         "manyata": (13.0451, 77.6266),
         "mg road": (12.9740, 77.6085),
-        "central park": (40.785091, -73.968285),
-        "jfk airport": (40.641311, -73.778139),
-        "times square": (40.758896, -73.985130),
-        "brooklyn bridge": (40.706086, -73.996864),
+        "shanti nagar": (12.9575, 77.5957),
+        "wilson garden": (12.9500, 77.5950),
+        "jayanagar": (12.9308, 77.5831),
+        "hsr layout": (12.9081, 77.6476),
+        "btm layout": (12.9166, 77.6101),
+        "banashankari": (12.9256, 77.5468),
+        "hebbal": (13.0352, 77.5970),
+        "yelahanka": (13.1007, 77.5963),
+        "marathahalli": (12.9591, 77.6974),
+        "jp nagar": (12.9102, 77.5765),
+        "rajajinagar": (12.9915, 77.5521),
+        "malleshwaram": (13.0035, 77.5710),
+        "basavanagudi": (12.9430, 77.5748),
+        "lalbagh": (12.9507, 77.5848),
     }
 
     for key, coords in mocks.items():
         if key in address_clean.lower():
             return coords
 
-    # Call Nominatim API
-    try:
-        params = {
-            "q": address_clean,
-            "format": "json",
-            "limit": 1
-        }
+    def _call_nominatim(query, bounded=False):
+        """Make a Nominatim API call, optionally bounded to Bengaluru."""
+        params = {"q": query, "format": "json", "limit": 1, "countrycodes": "in"}
+        if bounded:
+            params["viewbox"] = "77.45,13.10,77.75,12.85"
+            params["bounded"] = 1
         url = f"{config.NOMINATIM_API_URL}?{urllib.parse.urlencode(params)}"
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": config.API_USER_AGENT}
-        )
-        with urllib.request.urlopen(req, timeout=5) as response:
+        req = urllib.request.Request(url, headers={"User-Agent": config.API_USER_AGENT})
+        with urllib.request.urlopen(req, timeout=6) as response:
             data = json.loads(response.read().decode())
             if data:
                 return float(data[0]["lat"]), float(data[0]["lon"])
-    except Exception as e:
-        print(f"Geocoding API error for '{address_clean}': {e}. Using fallback.")
+        return None
 
-    # Generic fallback based on hashing address to deterministic coordinates near Bengaluru
-    hash_val = sum(ord(c) for c in address_clean)
-    lat = 12.9 + (hash_val % 100) * 0.002
-    lon = 77.5 + (hash_val % 150) * 0.002
-    return lat, lon
+    # Attempt 1: Full address, bounded to Bengaluru
+    try:
+        result = _call_nominatim(address_clean, bounded=True)
+        if result:
+            return result
+    except Exception as e:
+        print(f"Geocoding attempt 1 failed: {e}")
+
+    # Attempt 2: If it looks like a Nominatim display_name (has commas),
+    # use only the first part (place name) + Bengaluru
+    if "," in address_clean:
+        short_name = address_clean.split(",")[0].strip()
+        if short_name and len(short_name) > 2:
+            try:
+                result = _call_nominatim(f"{short_name}, Bengaluru", bounded=True)
+                if result:
+                    print(f"Geocoding succeeded with short name: '{short_name}'")
+                    return result
+            except Exception as e:
+                print(f"Geocoding attempt 2 failed: {e}")
+
+    # All attempts failed — return None so caller shows an error
+    print(f"Geocoding completely failed for: '{address_clean[:80]}'")
+    return None
 
 
 def get_route(start_coords, end_coords):
