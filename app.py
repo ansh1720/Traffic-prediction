@@ -192,10 +192,21 @@ def api_route():
     
     if not src or not dst:
         return jsonify({"success": False, "error": "Source and destination are required"}), 400
-        
-    start_coords = geocode_address(src)
-    end_coords = geocode_address(dst)
-    
+
+    # Use pre-resolved coords from autocomplete if provided (avoids re-geocoding ambiguity)
+    src_coords_raw = data.get("src_coords")
+    dst_coords_raw = data.get("dst_coords")
+
+    if src_coords_raw and len(src_coords_raw) == 2:
+        start_coords = tuple(src_coords_raw)
+    else:
+        start_coords = geocode_address(src)
+
+    if dst_coords_raw and len(dst_coords_raw) == 2:
+        end_coords = tuple(dst_coords_raw)
+    else:
+        end_coords = geocode_address(dst)
+
     if not start_coords or not end_coords:
         return jsonify({"success": False, "error": "Failed to geocode locations"}), 400
         

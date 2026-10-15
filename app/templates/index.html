@@ -337,6 +337,8 @@
                     <label for="source">Source Landmark</label>
                     <div class="autocomplete-wrapper" id="source-wrapper">
                         <input type="text" id="source" class="form-control" value="Majestic Bus Station, Bengaluru" autocomplete="off" placeholder="Type a location...">
+                        <input type="hidden" id="source-lat">
+                        <input type="hidden" id="source-lon">
                         <div class="autocomplete-list" id="source-list"></div>
                     </div>
                 </div>
@@ -345,6 +347,8 @@
                     <label for="destination">Destination Landmark</label>
                     <div class="autocomplete-wrapper" id="destination-wrapper">
                         <input type="text" id="destination" class="form-control" value="Whitefield, Bengaluru" autocomplete="off" placeholder="Type a location...">
+                        <input type="hidden" id="destination-lat">
+                        <input type="hidden" id="destination-lon">
                         <div class="autocomplete-list" id="destination-list"></div>
                     </div>
                 </div>
@@ -406,11 +410,19 @@
 
         // ── Autocomplete Logic ──────────────────────────────────────────────
         function setupAutocomplete(inputId, listId) {
-            const input = document.getElementById(inputId);
-            const list  = document.getElementById(listId);
+            const input   = document.getElementById(inputId);
+            const list    = document.getElementById(listId);
+            const latField = document.getElementById(inputId + '-lat');
+            const lonField = document.getElementById(inputId + '-lon');
             let debounceTimer = null;
             let activeIndex   = -1;
             let suggestions   = [];
+
+            // Clear stored coords if user manually edits the field
+            input.addEventListener('input', () => {
+                latField.value = '';
+                lonField.value = '';
+            });
 
             input.addEventListener('input', () => {
                 clearTimeout(debounceTimer);
@@ -467,6 +479,9 @@
                         </span>`;
                     div.addEventListener('click', () => {
                         input.value = detail;
+                        // ✅ Store exact lat/lon — no re-geocoding needed
+                        latField.value = item.lat;
+                        lonField.value = item.lon;
                         closeList();
                     });
                     list.appendChild(div);
@@ -518,6 +533,12 @@
             const time = document.getElementById('dep-time').value;
             const incident = false;
 
+            // Use pre-resolved coords from autocomplete if available
+            const srcLat = document.getElementById('source-lat').value;
+            const srcLon = document.getElementById('source-lon').value;
+            const dstLat = document.getElementById('destination-lat').value;
+            const dstLon = document.getElementById('destination-lon').value;
+
             if (!src || !dst) {
                 alert("Please fill in source and destination areas.");
                 return;
@@ -528,16 +549,25 @@
             btn.disabled = true;
 
             try {
+                const payload = {
+                    source: src,
+                    destination: dst,
+                    date: date,
+                    time: time,
+                    incident: incident
+                };
+                // Pass resolved coords if user picked from autocomplete
+                if (srcLat && srcLon) {
+                    payload.src_coords = [parseFloat(srcLat), parseFloat(srcLon)];
+                }
+                if (dstLat && dstLon) {
+                    payload.dst_coords = [parseFloat(dstLat), parseFloat(dstLon)];
+                }
+
                 const response = await fetch('/api/route', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        source: src,
-                        destination: dst,
-                        date: date,
-                        time: time,
-                        incident: incident
-                    })
+                    body: JSON.stringify(payload)
                 });
 
                 const res = await response.json();
