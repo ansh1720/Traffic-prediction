@@ -637,24 +637,34 @@
                     radius: 7
                 }).addTo(map).bindPopup(`Destination: ${dst}`);
 
-                // Draw alternate polyline (translucent gray)
-                if (res.alt_route) {
-                    altPolyline = L.polyline(res.alt_route.geometry, {
-                        color: '#9ca3af',
-                        weight: 4,
-                        opacity: 0.6
-                    }).addTo(map);
+                // Draw alternate polyline — only if its geometry stays near source/dest
+                if (res.alt_route && res.alt_route.geometry && res.alt_route.geometry.length > 0) {
+                    const altGeom = res.alt_route.geometry;
+                    const altStart = altGeom[0];
+                    const altEnd   = altGeom[altGeom.length - 1];
+                    const [sLat, sLon] = res.start_coords;
+                    const [eLat, eLon] = res.end_coords;
+                    const MAX_DRIFT = 0.5; // degrees (~55 km)
+                    const startOk = Math.abs(altStart[0] - sLat) < MAX_DRIFT && Math.abs(altStart[1] - sLon) < MAX_DRIFT;
+                    const endOk   = Math.abs(altEnd[0]   - eLat) < MAX_DRIFT && Math.abs(altEnd[1]   - eLon) < MAX_DRIFT;
+                    if (startOk && endOk) {
+                        altPolyline = L.polyline(altGeom, {
+                            color: '#9ca3af',
+                            weight: 4,
+                            opacity: 0.6
+                        }).addTo(map);
+                    }
                 }
 
-                // Draw main polyline (indigo)
+                // Draw main polyline (indigo) — always on top
                 mainPolyline = L.polyline(res.route_geometry, {
                     color: '#6366f1',
                     weight: 6,
                     opacity: 0.95
                 }).addTo(map);
 
-                // Zoom map to bounds
-                map.fitBounds(mainPolyline.getBounds(), { padding: [40, 40] });
+                // Fit map ONLY to the main route bounds (ignore alt route)
+                map.fitBounds(mainPolyline.getBounds(), { padding: [60, 60] });
 
             } catch (err) {
                 console.error(err);
