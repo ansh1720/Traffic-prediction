@@ -26,37 +26,94 @@ def geocode_address(address):
         return None
 
     address_clean = address.strip()
+    address_lower = address_clean.lower()
 
-    # Pre-defined mocks for common Bengaluru landmarks (fast path, no API call needed)
+    # Comprehensive Bengaluru locality coordinate map
     mocks = {
+        # Central / CBD
         "majestic": (12.9781, 77.5696),
         "kempegowda bus": (12.9781, 77.5696),
-        "koramangala": (12.9352, 77.6244),
-        "indiranagar": (12.9719, 77.6412),
-        "whitefield": (12.9698, 77.7500),
-        "electronic city": (12.8452, 77.6602),
-        "airport": (13.1986, 77.7066),
-        "kempegowda airport": (13.1986, 77.7066),
-        "manyata": (13.0451, 77.6266),
+        "city railway": (12.9776, 77.5713),
         "mg road": (12.9740, 77.6085),
+        "brigade road": (12.9726, 77.6069),
+        "commercial street": (12.9816, 77.6067),
+        "shivajinagar": (12.9855, 77.6006),
+        "cubbon park": (12.9763, 77.5929),
+        "vidhana soudha": (12.9794, 77.5908),
+        "ulsoor": (12.9829, 77.6199),
+        # South / Jayanagar
         "shanti nagar": (12.9575, 77.5957),
+        "santi nagar": (12.9575, 77.5957),
         "wilson garden": (12.9500, 77.5950),
         "jayanagar": (12.9308, 77.5831),
-        "hsr layout": (12.9081, 77.6476),
-        "btm layout": (12.9166, 77.6101),
-        "banashankari": (12.9256, 77.5468),
-        "hebbal": (13.0352, 77.5970),
-        "yelahanka": (13.1007, 77.5963),
-        "marathahalli": (12.9591, 77.6974),
         "jp nagar": (12.9102, 77.5765),
-        "rajajinagar": (12.9915, 77.5521),
-        "malleshwaram": (13.0035, 77.5710),
+        "banashankari": (12.9256, 77.5468),
         "basavanagudi": (12.9430, 77.5748),
         "lalbagh": (12.9507, 77.5848),
+        "btm layout": (12.9166, 77.6101),
+        "silk board": (12.9175, 77.6229),
+        "bommanahalli": (12.8976, 77.6177),
+        "electronic city": (12.8452, 77.6602),
+        "hsr layout": (12.9081, 77.6476),
+        "koramangala": (12.9352, 77.6244),
+        "ejipura": (12.9476, 77.6207),
+        "richmond town": (12.9636, 77.5992),
+        "langford town": (12.9594, 77.6054),
+        "sadashivanagar": (13.0043, 77.5741),
+        # North
+        "hebbal": (13.0352, 77.5970),
+        "yelahanka": (13.1007, 77.5963),
+        "manyata": (13.0451, 77.6266),
+        "nagawara": (13.0426, 77.6271),
+        "mathikere": (13.0194, 77.5573),
+        "rajajinagar": (12.9915, 77.5521),
+        "malleshwaram": (13.0035, 77.5710),
+        "jalahalli": (13.0423, 77.5427),
+        "peenya": (13.0302, 77.5190),
+        "tumkur road": (13.0180, 77.5360),
+        "airport": (13.1986, 77.7066),
+        "kempegowda airport": (13.1986, 77.7066),
+        "devanahalli": (13.2415, 77.7121),
+        # East
+        "indiranagar": (12.9719, 77.6412),
+        "domlur": (12.9607, 77.6388),
+        "hal": (12.9594, 77.6659),
+        "marathahalli": (12.9591, 77.6974),
+        "whitefield": (12.9698, 77.7500),
+        "kr puram": (13.0058, 77.6953),
+        "ramamurthy nagar": (13.0106, 77.6630),
+        "hoodi": (12.9894, 77.7126),
+        "mahadevapura": (12.9926, 77.7067),
+        "bellandur": (12.9257, 77.6770),
+        "sarjapur": (12.8561, 77.7858),
+        "varthur": (12.9374, 77.7436),
+        # West
+        "rajajinagar": (12.9915, 77.5521),
+        "vijayanagar": (12.9713, 77.5295),
+        "chord road": (12.9936, 77.5443),
+        "nagarbhavi": (12.9569, 77.4986),
+        "kengeri": (12.9121, 77.4822),
+        "rajarajeshwari nagar": (12.9121, 77.5122),
+        # Outer ring road / Peripheral
+        "outer ring road": (12.9352, 77.6860),
+        "sarjapura road": (12.8853, 77.6955),
+        "hosur road": (12.8742, 77.6324),
+        "bannerghatta road": (12.8748, 77.5975),
+        "mysore road": (12.9425, 77.4985),
+        "tumkur": (13.3409, 77.1010),
+        "electronic city phase 2": (12.8238, 77.6636),
+        # Specific landmarks
+        "forum mall": (12.9277, 77.6271),
+        "phoenix mall": (12.9984, 77.6964),
+        "ubs": (12.9353, 77.6233),
+        "iim bangalore": (12.9355, 77.5353),
+        "iim": (12.9355, 77.5353),
+        "iit bangalore": (13.0115, 77.5661),
+        "central park": (12.9763, 77.5929),
     }
 
     for key, coords in mocks.items():
-        if key in address_clean.lower():
+        if key in address_lower:
             return coords
 
     def _call_nominatim(query, bounded=False):
@@ -73,30 +130,30 @@ def geocode_address(address):
                 return float(data[0]["lat"]), float(data[0]["lon"])
         return None
 
-    # Attempt 1: Full address, bounded to Bengaluru
+    # Build a clean search query — always anchor to Bengaluru
+    # Extract just the first part if it's a long comma-separated string
+    search_term = address_clean.split(",")[0].strip() if "," in address_clean else address_clean
+    bengaluru_query = f"{search_term}, Bengaluru, Karnataka, India"
+
+    # Attempt 1: Bounded to Bengaluru box
     try:
-        result = _call_nominatim(address_clean, bounded=True)
+        result = _call_nominatim(bengaluru_query, bounded=True)
         if result:
             return result
     except Exception as e:
         print(f"Geocoding attempt 1 failed: {e}")
 
-    # Attempt 2: If it looks like a Nominatim display_name (has commas),
-    # use only the first part (place name) + Bengaluru
-    if "," in address_clean:
-        short_name = address_clean.split(",")[0].strip()
-        if short_name and len(short_name) > 2:
-            try:
-                result = _call_nominatim(f"{short_name}, Bengaluru", bounded=True)
-                if result:
-                    print(f"Geocoding succeeded with short name: '{short_name}'")
-                    return result
-            except Exception as e:
-                print(f"Geocoding attempt 2 failed: {e}")
+    # Attempt 2: Unbounded but still anchored to Bengaluru in query
+    try:
+        result = _call_nominatim(bengaluru_query, bounded=False)
+        if result:
+            return result
+    except Exception as e:
+        print(f"Geocoding attempt 2 failed: {e}")
 
-    # All attempts failed — return None so caller shows an error
     print(f"Geocoding completely failed for: '{address_clean[:80]}'")
     return None
+
 
 
 def get_route(start_coords, end_coords):
